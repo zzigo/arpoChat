@@ -12,5 +12,5 @@ if [ -d "venv" ]; then
     source venv/bin/activate
 fi
 
-# Start the development server
-uvicorn api.main:app --host 0.0.0.0 --port 8002 --reload --log-level debug
+# Start the development server with Python 3.10
+python3.10 -m uvicorn api.main:app --host 0.0.0.0 --port 8004 --reload --log-level debug 

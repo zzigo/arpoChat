@@ -16,4 +16,4 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     numInstances: 1
-    plan: free
+    plan: free 
