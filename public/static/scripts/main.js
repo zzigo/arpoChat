@@ -175,36 +175,38 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.responsesContainer.style.display = 'block';
     }
 
-    async function generateResponses(prompt) {
-        try {
-            const response = await fetch(`${BASE_URL}/generate`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ prompt, max_length: 1024 }),
-            });
-            const data = await response.json();
-            console.log('Raw response:', data);
-            if (!response.ok) throw new Error(data.detail || 'Error generating text');
-            return data.generated_texts;
-        } catch (error) {
-            console.error('Generation error:', error);
-            throw error;
-        }
-    }
+    onst BASE_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:8004' 
+    : 'http://69.62.112.116:8004';  // Port 8004
 
-    async function fetchModelInfo() {
-        try {
-            const response = await fetch(`${BASE_URL}/model-info`);
-            if (!response.ok) {
-                throw new Error('Failed to fetch model info');
-            }
-            const modelInfo = await response.json();
-            updateModelInfo(modelInfo);
-            displayModelInfo(modelInfo);
-        } catch (error) {
-            console.error('Error fetching model info:', error);
-        }
+async function generateResponses(prompt) {
+    try {
+        const response = await fetch(`${BASE_URL}/generate`, {  // Single slash
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ prompt, max_length: 1024 }),
+        });
+        const data = await response.json();
+        console.log('Raw response:', data);
+        if (!response.ok) throw new Error(data.detail || 'Error generating text');
+        return data.generated_texts;
+    } catch (error) {
+        console.error('Generation error:', error);
+        throw error;
     }
+}
+
+async function fetchModelInfo() {
+    try {
+        const response = await fetch(`${BASE_URL}/model-info`);  // Single slash
+        if (!response.ok) throw new Error('Failed to fetch model info');
+        const modelInfo = await response.json();
+        updateModelInfo(modelInfo);
+        displayModelInfo(modelInfo);
+    } catch (error) {
+        console.error('Error fetching model info:', error);
+    }
+}
 
     function displayModelInfo(info) {
         if (!info) return;
