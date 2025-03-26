@@ -7,7 +7,8 @@ from huggingface_hub import HfApi
 from pathlib import Path
 import psutil  # For memory usage
 
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, filename='/var/log/arpochat/arpochat.log')
 logger = logging.getLogger(__name__)
 
 hf_token = os.getenv('HF_TOKEN')

@@ -7,7 +7,8 @@ import os
 import uvicorn
 from .generate import generate_text, get_model_info
 
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, filename='/var/log/arpochat/arpochat.log')
 logger = logging.getLogger(__name__)
 
 ENVIRONMENT = "production" if os.getenv("RENDER") else "local"
