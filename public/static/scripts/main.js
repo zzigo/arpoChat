@@ -157,65 +157,106 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function addToHistory(prompt, responses) {
-        const template = document.getElementById('generationTemplate');
-        if (!template) return;
+  function addToHistory(prompt, responses) {
+    console.log('Adding to history:', responses);  // Debug
+    const template = document.getElementById('generationTemplate');
+    if (!template) return;
+    
+    const columns = {
+        0.1: document.getElementById('lowTempColumn'),
+        0.5: document.getElementById('medTempColumn'),
+        0.9: document.getElementById('highTempColumn')
+    };
+    
+    responses.forEach(response => {
+        const clone = template.content.cloneNode(true);
+        clone.querySelector('.prompt-text').textContent = `Prompt: ${prompt}`;
+        clone.querySelector('.generated-text').innerHTML = styleSpecialWords(response.text);
         
-        // Get column elements
-        const columns = {
-            low: document.getElementById('lowTempColumn'),
-            med: document.getElementById('medTempColumn'),
-            high: document.getElementById('highTempColumn')
-        };
-        
-        // Add each response to its corresponding column
-        responses.forEach(response => {
-            const clone = template.content.cloneNode(true);
-            clone.querySelector('.prompt-text').textContent = `Prompt: ${prompt}`;
-            clone.querySelector('.generated-text').textContent = response.text;
-            
-            // Determine which column to use based on temperature
-            let column;
-            if (response.temperature === 0.1) column = columns.low;
-            else if (response.temperature === 0.5) column = columns.med;
-            else if (response.temperature === 0.9) column = columns.high;
-            
-            if (column) {
-                // Insert after the header
-                const header = column.querySelector('.response-column-header');
-                if (header) {
-                    header.insertAdjacentElement('afterend', clone.firstElementChild);
-                } else {
-                    column.appendChild(clone);
-                }
-            }
-        });
-    }
-
-    async function generateResponses(prompt) {
-        try {
-            const response = await fetch('http://localhost:8004/generate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    prompt: prompt,
-                    max_length: 512
-                }),
-            });
-
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.detail || 'Error generating text');
-            }
-
-            return data;
-        } catch (error) {
-            console.error('Generation error:', error);
-            throw error;
+        const column = columns[response.temperature];
+        if (column) {
+            const header = column.querySelector('.response-column-header');
+            header.insertAdjacentElement('afterend', clone.firstElementChild);
+        } else {
+            console.error('No column for temperature:', response.temperature);
         }
+    });
+    elements.responsesContainer.style.display = 'block';
+}
+
+  async function generateResponses(prompt) {
+    try {
+        const response = await fetch('http://localhost:8004/generate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ prompt, max_length: 1024 }),
+        });
+        const data = await response.json();
+        console.log('Raw response:', data);  // Log full response
+        if (!response.ok) throw new Error(data.detail || 'Error generating text');
+        return data.generated_texts;
+    } catch (error) {
+        console.error('Generation error:', error);
+        throw error;
     }
+}
+
+function addToHistory(prompt, responses) {
+    console.log('Adding to history:', responses);  // Debug
+    const template = document.getElementById('generationTemplate');
+    if (!template) return;
+    
+    const columns = {
+        0.1: document.getElementById('lowTempColumn'),
+        0.5: document.getElementById('medTempColumn'),
+        0.9: document.getElementById('highTempColumn')
+    };
+    
+    responses.forEach(response => {
+        const clone = template.content.cloneNode(true);
+        clone.querySelector('.prompt-text').textContent = `Prompt: ${prompt}`;
+        clone.querySelector('.generated-text').innerHTML = styleSpecialWords(response.text);
+        
+        const column = columns[response.temperature];
+        if (column) {
+            const header = column.querySelector('.response-column-header');
+            header.insertAdjacentElement('afterend', clone.firstElementChild);
+        } else {
+            console.error('No column for temperature:', response.temperature);
+        }
+    });
+    elements.responsesContainer.style.display = 'block';
+}
+
+async function handleSubmit() {
+    if (!elements.userInput || !elements.generateButton) return;
+    const prompt = elements.userInput.value.trim();
+    if (!prompt) return;
+
+    try {
+        elements.generateButton.disabled = true;
+        elements.generateButton.textContent = 'Generando...';
+        elements.errorMessage?.classList.remove('visible');
+        elements.loadingContainer.style.display = 'flex';
+
+        const responses = await generateResponses(prompt);
+        console.log('Handle submit responses:', responses);  // Debug: Check before adding
+        addToHistory(prompt, responses);
+        
+        elements.userInput.value = '';
+        if (isFirstGeneration) {
+            elements.inputContainer.classList.add('shifted');
+            elements.responsesContainer.classList.add('visible');
+            isFirstGeneration = false;
+        }
+    } catch (error) {
+        showError(error.message);
+    } finally {
+        elements.generateButton.disabled = false;
+        elements.generateButton.textContent = 'Generar';
+        elements.loadingContainer.style.display = 'none';
+    }
+}
 
     async function fetchModelInfo() {
         try {
@@ -253,47 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (elements.embedding) elements.embedding.textContent = info.embedding_size || '768';
     }
 
-    async function handleSubmit() {
-        if (!elements.userInput || !elements.generateButton) return;
-
-        const prompt = elements.userInput.value.trim();
-        if (!prompt) return;
-
-        try {
-            elements.generateButton.disabled = true;
-            elements.generateButton.textContent = 'Generando...';
-            elements.errorMessage?.classList.remove('visible');
-            elements.loadingContainer.style.display = 'flex';
-
-            const response = await generateResponses(prompt);
-            
-            if (response?.generated_texts) {
-                addToHistory(prompt, response.generated_texts);
-                elements.userInput.value = '';
-                
-                // Update stats
-                const totalChars = response.generated_texts.reduce((sum, item) => sum + item.text.length, 0);
-                const totalWords = response.generated_texts.reduce((sum, item) => sum + item.text.split(/\s+/).length, 0);
-                
-                if (stats.charCount) stats.charCount.textContent = totalChars;
-                if (stats.wordCount) stats.wordCount.textContent = totalWords;
-                if (stats.tokenCount) stats.tokenCount.textContent = Math.round(totalWords * 1.3);
-                if (stats.promptText) stats.promptText.textContent = prompt;
-                
-                if (isFirstGeneration) {
-                    elements.inputContainer.classList.add('shifted');
-                    elements.responsesContainer.classList.add('visible');
-                    isFirstGeneration = false;
-                }
-            }
-        } catch (error) {
-            showError(error.message);
-        } finally {
-            elements.generateButton.disabled = false;
-            elements.generateButton.textContent = 'Generar';
-            elements.loadingContainer.style.display = 'none';
-        }
-    }
+    
 
     function handleClear() {
         if (elements.userInput && elements.generateButton) {
