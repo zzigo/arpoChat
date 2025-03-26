@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArpoChat - Generador de Texto</title>
+    
+    <!-- Favicon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/favicons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicons/favicon-16x16.png">
+    <link rel="manifest" href="/static/favicons/site.webmanifest">
+    <link rel="shortcut icon" href="/static/favicon.ico">
+    <meta name="theme-color" content="#ff69b4">
+    
+    <link rel="stylesheet" href="/static/styles/main.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,700;1,400&display=swap">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ArpoChat</h1>
+            <p>Generador de texto basado en poesía argentina</p>
+            <div class="model-sources">
+                <em>Fuentes: Storni, Blatt, Cucurto, Durand, Luy, Zaidenwerg, Rubio, Casas, Desiderio, Laguna, Gambarotta, Rodríguez, Jacoby, de la Púa, Raimondi, Carballar</em>
+            </div>
+        </header>
+        
+        <main>
+            <div class="chat-container">
+                <div class="generation-info hidden">
+                    <div class="stats">
+                        <span class="stat">Caracteres: <span id="char-count">0</span></span>
+                        <span class="stat">Palabras: <span id="word-count">0</span></span>
+                        <span class="stat">Tokens: <span id="token-count">0</span></span>
+                        <span class="stat">Prompt: <span id="prompt-text"></span></span>
+                        <span class="stat">Modelo: ArpoChat v1.0</span>
+                    </div>
+                </div>
+
+                <div id="chat-history"></div>
+                
+                <div class="responses-container hidden">
+                    <div class="response-column">
+                        <div class="temperature-label">Temperatura: 0.2</div>
+                        <div id="response-0.2" class="response-content"></div>
+                    </div>
+                    <div class="response-column">
+                        <div class="temperature-label">Temperatura: 0.5</div>
+                        <div id="response-0.5" class="response-content"></div>
+                    </div>
+                    <div class="response-column">
+                        <div class="temperature-label">Temperatura: 0.9</div>
+                        <div id="response-0.9" class="response-content"></div>
+                    </div>
+                </div>
+
+                <div class="input-container">
+                    <textarea id="user-input" placeholder="Escribe tu mensaje aquí..." rows="3"></textarea>
+                    <button id="send-button">Enviar</button>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Desarrollado con ❤️ usando FastAPI y PyTorch</p>
+        </footer>
+    </div>
+    
+    <script src="/static/scripts/main.js"></script>
+</body>
+</html> 

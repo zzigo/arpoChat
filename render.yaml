@@ -11,17 +11,9 @@ services:
         value: /tmp/.cache/huggingface
       - key: TORCH_HOME
         value: /tmp/.cache/torch
-      - key: HF_HOME
-        value: /tmp/.cache/huggingface
-      - key: HF_HUB_CACHE
-        value: /tmp/.cache/huggingface/hub
       - key: LOG_LEVEL
         value: info
     healthCheckPath: /health
     autoDeploy: true
     numInstances: 1
-    plan: free
-    disk:
-      name: cache
-      mountPath: /tmp/.cache
-      sizeGB: 1
+    plan: free 
