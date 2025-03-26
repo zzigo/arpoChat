@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const BASE_URL = window.location.hostname === 'localhost' 
     ? 'http://localhost:8004' 
-    : 'http://arpochat.zztt.org';  // Port 8004
+    : 'https://arpochat.zztt.org';  // Port 8004
 
 async function generateResponses(prompt) {
     try {
