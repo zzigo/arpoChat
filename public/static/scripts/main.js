@@ -8,6 +8,11 @@ window.toggleInfo = function() {
     }
 };
 
+// Dynamic base URL for local and Render environments
+const BASE_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:8004' 
+    : 'https://arpochat.onrender.com';
+
 document.addEventListener('DOMContentLoaded', () => {
     // Get DOM elements
     const elements = {
@@ -95,24 +100,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to style special words
     const styleSpecialWords = (text) => {
-        // Common Spanish verb endings
         const verbEndings = ['ar', 'er', 'ir', 'aba', 'ía', 'ado', 'ido', 'ando', 'iendo'];
         const commonAdjEndings = ['oso', 'osa', 'ico', 'ica', 'ble', 'ante', 'ente', 'al', 'il'];
         
-        // Split text into words while preserving punctuation and spaces
         return text.split(/(\s+|[.,!?;:()])/g).map(word => {
             const lowerWord = word.toLowerCase();
-            
-            // Check if it's a verb
             if (verbEndings.some(ending => lowerWord.endsWith(ending)) && word.length > 3) {
                 return `<span class="verb">${word}</span>`;
             }
-            
-            // Check if it's an adjective
             if (commonAdjEndings.some(ending => lowerWord.endsWith(ending)) && word.length > 3) {
                 return `<span class="adjective">${word}</span>`;
             }
-            
             return word;
         }).join('');
     };
@@ -132,19 +130,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateStats(responses, prompt, modelInfo) {
-        // Update prompt text
         document.getElementById('prompt-text').textContent = prompt;
-        
-        // Calculate total characters and words from all responses
         const totalChars = responses.reduce((sum, response) => sum + (response?.length || 0), 0);
         const totalWords = responses.reduce((sum, response) => sum + (response?.split(/\s+/).length || 0), 0);
-        
-        // Update stats
         document.getElementById('char-count').textContent = totalChars;
         document.getElementById('word-count').textContent = totalWords;
-        document.getElementById('token-count').textContent = Math.round(totalWords * 1.3); // Rough estimate
-        
-        // Update model info if available
+        document.getElementById('token-count').textContent = Math.round(totalWords * 1.3);
         if (modelInfo) {
             updateModelInfo(modelInfo);
             document.getElementById('model-name').textContent = modelInfo.name || 'N/A';
@@ -157,110 +148,53 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-  function addToHistory(prompt, responses) {
-    console.log('Adding to history:', responses);  // Debug
-    const template = document.getElementById('generationTemplate');
-    if (!template) return;
-    
-    const columns = {
-        0.1: document.getElementById('lowTempColumn'),
-        0.5: document.getElementById('medTempColumn'),
-        0.9: document.getElementById('highTempColumn')
-    };
-    
-    responses.forEach(response => {
-        const clone = template.content.cloneNode(true);
-        clone.querySelector('.prompt-text').textContent = `Prompt: ${prompt}`;
-        clone.querySelector('.generated-text').innerHTML = styleSpecialWords(response.text);
+    function addToHistory(prompt, responses) {
+        console.log('Adding to history:', responses);
+        const template = document.getElementById('generationTemplate');
+        if (!template) return;
         
-        const column = columns[response.temperature];
-        if (column) {
-            const header = column.querySelector('.response-column-header');
-            header.insertAdjacentElement('afterend', clone.firstElementChild);
-        } else {
-            console.error('No column for temperature:', response.temperature);
-        }
-    });
-    elements.responsesContainer.style.display = 'block';
-}
-
-  async function generateResponses(prompt) {
-    try {
-        const response = await fetch('http://localhost:8004/generate', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ prompt, max_length: 1024 }),
+        const columns = {
+            0.1: document.getElementById('lowTempColumn'),
+            0.5: document.getElementById('medTempColumn'),
+            0.9: document.getElementById('highTempColumn')
+        };
+        
+        responses.forEach(response => {
+            const clone = template.content.cloneNode(true);
+            clone.querySelector('.prompt-text').textContent = `Prompt: ${prompt}`;
+            clone.querySelector('.generated-text').innerHTML = styleSpecialWords(response.text);
+            
+            const column = columns[response.temperature];
+            if (column) {
+                const header = column.querySelector('.response-column-header');
+                header.insertAdjacentElement('afterend', clone.firstElementChild);
+            } else {
+                console.error('No column for temperature:', response.temperature);
+            }
         });
-        const data = await response.json();
-        console.log('Raw response:', data);  // Log full response
-        if (!response.ok) throw new Error(data.detail || 'Error generating text');
-        return data.generated_texts;
-    } catch (error) {
-        console.error('Generation error:', error);
-        throw error;
+        elements.responsesContainer.style.display = 'block';
     }
-}
 
-function addToHistory(prompt, responses) {
-    console.log('Adding to history:', responses);  // Debug
-    const template = document.getElementById('generationTemplate');
-    if (!template) return;
-    
-    const columns = {
-        0.1: document.getElementById('lowTempColumn'),
-        0.5: document.getElementById('medTempColumn'),
-        0.9: document.getElementById('highTempColumn')
-    };
-    
-    responses.forEach(response => {
-        const clone = template.content.cloneNode(true);
-        clone.querySelector('.prompt-text').textContent = `Prompt: ${prompt}`;
-        clone.querySelector('.generated-text').innerHTML = styleSpecialWords(response.text);
-        
-        const column = columns[response.temperature];
-        if (column) {
-            const header = column.querySelector('.response-column-header');
-            header.insertAdjacentElement('afterend', clone.firstElementChild);
-        } else {
-            console.error('No column for temperature:', response.temperature);
+    async function generateResponses(prompt) {
+        try {
+            const response = await fetch(`${BASE_URL}/generate`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ prompt, max_length: 1024 }),
+            });
+            const data = await response.json();
+            console.log('Raw response:', data);
+            if (!response.ok) throw new Error(data.detail || 'Error generating text');
+            return data.generated_texts;
+        } catch (error) {
+            console.error('Generation error:', error);
+            throw error;
         }
-    });
-    elements.responsesContainer.style.display = 'block';
-}
-
-async function handleSubmit() {
-    if (!elements.userInput || !elements.generateButton) return;
-    const prompt = elements.userInput.value.trim();
-    if (!prompt) return;
-
-    try {
-        elements.generateButton.disabled = true;
-        elements.generateButton.textContent = 'Generando...';
-        elements.errorMessage?.classList.remove('visible');
-        elements.loadingContainer.style.display = 'flex';
-
-        const responses = await generateResponses(prompt);
-        console.log('Handle submit responses:', responses);  // Debug: Check before adding
-        addToHistory(prompt, responses);
-        
-        elements.userInput.value = '';
-        if (isFirstGeneration) {
-            elements.inputContainer.classList.add('shifted');
-            elements.responsesContainer.classList.add('visible');
-            isFirstGeneration = false;
-        }
-    } catch (error) {
-        showError(error.message);
-    } finally {
-        elements.generateButton.disabled = false;
-        elements.generateButton.textContent = 'Generar';
-        elements.loadingContainer.style.display = 'none';
     }
-}
 
     async function fetchModelInfo() {
         try {
-            const response = await fetch('http://localhost:8004/model-info');
+            const response = await fetch(`${BASE_URL}/model-info`);
             if (!response.ok) {
                 throw new Error('Failed to fetch model info');
             }
@@ -274,7 +208,6 @@ async function handleSubmit() {
 
     function displayModelInfo(info) {
         if (!info) return;
-        
         const elements = {
             name: document.getElementById('model-name'),
             vocab: document.getElementById('model-vocab'),
@@ -284,7 +217,6 @@ async function handleSubmit() {
             context: document.getElementById('model-context'),
             embedding: document.getElementById('model-embedding')
         };
-
         if (elements.name) elements.name.textContent = info.name || 'ArPoChat';
         if (elements.vocab) elements.vocab.textContent = info.vocab_size?.toLocaleString() || '50,257';
         if (elements.params) elements.params.textContent = info.total_params?.toLocaleString() || '124,439,808';
@@ -294,7 +226,35 @@ async function handleSubmit() {
         if (elements.embedding) elements.embedding.textContent = info.embedding_size || '768';
     }
 
-    
+    async function handleSubmit() {
+        if (!elements.userInput || !elements.generateButton) return;
+        const prompt = elements.userInput.value.trim();
+        if (!prompt) return;
+
+        try {
+            elements.generateButton.disabled = true;
+            elements.generateButton.textContent = 'Generando...';
+            elements.errorMessage?.classList.remove('visible');
+            elements.loadingContainer.style.display = 'flex';
+
+            const responses = await generateResponses(prompt);
+            console.log('Handle submit responses:', responses);
+            addToHistory(prompt, responses);
+            
+            elements.userInput.value = '';
+            if (isFirstGeneration) {
+                elements.inputContainer.classList.add('shifted');
+                elements.responsesContainer.classList.add('visible');
+                isFirstGeneration = false;
+            }
+        } catch (error) {
+            showError(error.message);
+        } finally {
+            elements.generateButton.disabled = false;
+            elements.generateButton.textContent = 'Generar';
+            elements.loadingContainer.style.display = 'none';
+        }
+    }
 
     function handleClear() {
         if (elements.userInput && elements.generateButton) {
@@ -305,13 +265,11 @@ async function handleSubmit() {
 
     function updateGenerationStats(prompt, text) {
         if (!elements.generationStats) return;
-        
         const stats = {
             characters: text.length,
             words: text.split(/\s+/).length,
-            tokens: Math.round(text.length / 4), // Rough estimate
+            tokens: Math.round(text.length / 4),
         };
-        
         elements.generationStats.innerHTML = `
             <p>Caracteres: ${stats.characters}</p>
             <p>Palabras: ${stats.words}</p>
@@ -346,19 +304,16 @@ async function handleSubmit() {
         elements.clearButton.addEventListener('click', handleClear);
     }
 
-    // Add keyboard event listeners
     document.addEventListener('keydown', (event) => {
-        // Ctrl+I for info panel
         if (event.ctrlKey && event.key.toLowerCase() === 'i') {
-            event.preventDefault(); // Prevent default browser behavior
+            event.preventDefault();
             toggleInfo();
         }
     });
 
-    // Add Enter key handler for input
     elements.userInput.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault(); // Prevent newline
+            event.preventDefault();
             if (!elements.generateButton.disabled) {
                 handleSubmit();
             }
@@ -371,4 +326,4 @@ async function handleSubmit() {
 
     // Fetch model info when page loads
     fetchModelInfo();
-}); 
+});
