@@ -30,14 +30,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="public/static"), name="static")
-app.mount("/", StaticFiles(directory="public", html=True), name="public")
-
 class GenerateRequest(BaseModel):
     prompt: str
     max_length: Optional[int] = 100
     temperature: Optional[float] = 0.8
+    custom_prompt: Optional[str] = None
 
 @app.get("/health")
 async def health_check():
@@ -59,7 +56,7 @@ async def health_check():
             content={"status": "error", "message": str(e)}
         )
 
-@app.post("/api/generate")
+@app.post("/generate")
 async def generate(request: GenerateRequest):
     """Generate text from a prompt."""
     try:
@@ -69,18 +66,34 @@ async def generate(request: GenerateRequest):
         if not request.prompt.strip():
             raise HTTPException(status_code=400, detail="Prompt cannot be empty")
         
+        # Get model info
+        model = get_model()
+        model_info = {
+            "name": model.config.name_or_path,
+            "vocab_size": model.config.vocab_size,
+            "n_positions": model.config.n_positions,
+            "n_ctx": model.config.n_ctx,
+            "n_embd": model.config.n_embd,
+            "n_layer": model.config.n_layer,
+            "n_head": model.config.n_head,
+            "total_params": sum(p.numel() for p in model.parameters()),
+            "device": str(next(model.parameters()).device)
+        }
+        
         # Generate text
         responses = generate_text(
             prompt=request.prompt,
             max_length=request.max_length,
-            temperature=request.temperature
+            temperature=request.temperature,
+            custom_prompt=request.custom_prompt
         )
         
         return JSONResponse(
             content={
                 "status": "success",
                 "responses": responses,
-                "prompt": request.prompt
+                "prompt": request.prompt,
+                "model_info": model_info
             }
         )
     except Exception as e:
@@ -91,4 +104,8 @@ async def generate(request: GenerateRequest):
                 "status": "error",
                 "message": f"Error generating text: {str(e)}"
             }
-        ) 
+        )
+
+# Mount static files AFTER all API routes
+app.mount("/static", StaticFiles(directory="public/static"), name="static")
+app.mount("/", StaticFiles(directory="public", html=True), name="public") 

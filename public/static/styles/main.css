@@ -16,12 +16,6 @@
     --temp-high: #e74c3c;
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
 body {
     font-family: 'JetBrains Mono', monospace;
     background-color: var(--bg-color);
@@ -38,6 +32,7 @@ body {
 }
 
 header {
+    text-align: center;
     margin-bottom: 2rem;
 }
 
@@ -45,6 +40,7 @@ header h1 {
     font-size: 3rem;
     color: var(--primary-color);
     margin-bottom: 0.5rem;
+    font-weight: normal;  /* Remove bold */
 }
 
 header p {
@@ -61,15 +57,73 @@ header p {
 }
 
 .chat-container {
+    background: transparent;
     border-radius: 10px;
     padding: 2rem;
     margin-bottom: 2rem;
 }
 
 .generation-info {
+    margin-top: 1rem;
     padding: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 5px;
+    font-size: 0.9rem;
+}
+
+.info-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    padding: 0.5rem;
+    user-select: none;
+}
+
+.info-header h3 {
+    margin: 0;
+    color: var(--primary-color);
+}
+
+.toggle-icon {
+    color: var(--primary-color);
+    transition: transform 0.3s ease;
+}
+
+.info-content {
+    display: none;
+    margin-top: 1rem;
+}
+
+.info-content.expanded {
+    display: block;
+}
+
+.info-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+.info-column {
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 5px;
+}
+
+.info-column h4 {
+    color: var(--primary-color);
     margin-bottom: 1rem;
-    font-size: 0.8rem;
+}
+
+.info-column p {
+    margin: 0.5rem 0;
+    color: var(--tertiary-color);
+}
+
+.info-column span {
+    color: var(--secondary-color);
+    font-family: 'JetBrains Mono', monospace;
 }
 
 .stats {
@@ -110,7 +164,7 @@ header p {
 }
 
 /* Input styling */
-#user-input {
+#userInput {
     width: 100%;
     padding: 1rem;
     background: transparent;
@@ -124,9 +178,10 @@ header p {
     margin-bottom: 1rem;
     caret-width: thick;  /* Thicker cursor */
     caret-color: var(--input-color);  /* Match cursor color with text */
+    outline: none;  /* Remove focus outline */
 }
 
-#send-button {
+#sendButton {
     background-color: var(--primary-color);
     color: var(--bg-color);
     border: none;
@@ -137,11 +192,11 @@ header p {
     transition: opacity 0.2s;
 }
 
-#send-button:hover {
+#sendButton:hover {
     opacity: 0.9;
 }
 
-#send-button:disabled {
+#sendButton:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }
@@ -179,7 +234,7 @@ header p {
     display: none;
 }
 
-#chat-history {
+#chatHistory {
     margin-bottom: 2rem;
 }
 
@@ -196,63 +251,92 @@ footer {
     font-size: 0.9rem;
 }
 
-@media (max-width: 768px) {
-    .container {
-        padding: 1rem;
-    }
-    
-    .responses-container {
-        grid-template-columns: 1fr;
-    }
-    
-    .response-column {
-        margin-bottom: 1rem;
-    }
-    
-    header h1 {
-        font-size: 2rem;
-    }
-    
-    .input-container {
-        flex-direction: column;
-    }
-    
-    button {
-        width: 100%;
-        padding: 1rem;
-    }
+/* Loading animation */
+.loading-container {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(26, 26, 26, 0.9);
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    z-index: 1000;
 }
 
-/* Loading animation */
 .loading-wheel {
-    display: none;
     width: 50px;
     height: 50px;
-    margin: 20px auto;
     border: 3px solid var(--primary-color);
     border-radius: 50%;
     border-top-color: transparent;
     animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
 }
 
-.loading-wheel.active {
-    display: block;
+.loading-text {
+    color: var(--primary-color);
+    font-size: 1.2rem;
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
-/* Loading text */
-.loading-text {
-    display: none;
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+
+    .responses-container {
+        grid-template-columns: 1fr;
+    }
+
+    .response-column {
+        margin-bottom: 1rem;
+    }
+
+    header h1 {
+        font-size: 2rem;
+    }
+
+    .input-container {
+        flex-direction: column;
+    }
+
+    button {
+        width: 100%;
+        padding: 1rem;
+    }
+
+    .info-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
+.model-info {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 5px;
+    font-size: 0.9rem;
+}
+
+.model-info h4 {
     color: var(--primary-color);
-    text-align: center;
-    margin: 10px 0;
-    font-style: italic;
+    margin-bottom: 0.5rem;
 }
 
-.loading-text.active {
-    display: block;
+.model-info p {
+    margin: 0.3rem 0;
+    color: var(--tertiary-color);
+}
+
+.model-info span {
+    color: var(--secondary-color);
+    font-family: 'JetBrains Mono', monospace;
 } 

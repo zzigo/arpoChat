@@ -3,70 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ArpoChat - Generador de Texto</title>
-    
-    <!-- Favicon -->
+    <title>ArpoChat</title>
+    <link rel="stylesheet" href="/static/styles/main.css">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/favicons/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicons/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/static/favicons/favicon-16x16.png">
-    <link rel="manifest" href="/static/favicons/site.webmanifest">
-    <link rel="shortcut icon" href="/static/favicon.ico">
-    <meta name="theme-color" content="#ff69b4">
-    
-    <link rel="stylesheet" href="/static/styles/main.css">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,700;1,400&display=swap">
+    <link rel="manifest" href="/site.webmanifest">
 </head>
 <body>
     <div class="container">
         <header>
             <h1>ArpoChat</h1>
-            <p>Generador de texto basado en poesía argentina</p>
-            <div class="model-sources">
-                <em>Fuentes: Storni, Blatt, Cucurto, Durand, Luy, Zaidenwerg, Rubio, Casas, Desiderio, Laguna, Gambarotta, Rodríguez, Jacoby, de la Púa, Raimondi, Carballar</em>
-            </div>
+            <p class="subtitle">Generador de texto poético</p>
         </header>
-        
+
         <main>
             <div class="chat-container">
-                <div class="generation-info hidden">
-                    <div class="stats">
-                        <span class="stat">Caracteres: <span id="char-count">0</span></span>
-                        <span class="stat">Palabras: <span id="word-count">0</span></span>
-                        <span class="stat">Tokens: <span id="token-count">0</span></span>
-                        <span class="stat">Prompt: <span id="prompt-text"></span></span>
-                        <span class="stat">Modelo: ArpoChat v1.0</span>
-                    </div>
-                </div>
-
-                <div id="chat-history"></div>
-                
-                <div class="responses-container hidden">
-                    <div class="response-column">
-                        <div class="temperature-label">Temperatura: 0.2</div>
-                        <div id="response-0.2" class="response-content"></div>
-                    </div>
-                    <div class="response-column">
-                        <div class="temperature-label">Temperatura: 0.5</div>
-                        <div id="response-0.5" class="response-content"></div>
-                    </div>
-                    <div class="response-column">
-                        <div class="temperature-label">Temperatura: 0.9</div>
-                        <div id="response-0.9" class="response-content"></div>
-                    </div>
-                </div>
-
+                <div class="chat-history" id="chatHistory"></div>
                 <div class="input-container">
-                    <textarea id="user-input" placeholder="Escribe tu mensaje aquí..." rows="3"></textarea>
-                    <button id="send-button">Enviar</button>
+                    <textarea 
+                        id="userInput" 
+                        placeholder="Escribe tu prompt aquí..."
+                        rows="3"
+                    ></textarea>
+                    <button id="sendButton">Enviar</button>
+                </div>
+            </div>
+
+            <div class="generation-info" id="generationInfo">
+                <div class="info-header" onclick="toggleInfo()">
+                    <h3>Información de modelos y generación</h3>
+                    <span class="toggle-icon">▼</span>
+                </div>
+                <div class="info-content" id="infoContent">
+                    <div class="info-columns">
+                        <div class="info-column">
+                            <h4>Estadísticas de generación</h4>
+                            <div class="stats">
+                                <p>Caracteres: <span id="char-count">0</span></p>
+                                <p>Palabras: <span id="word-count">0</span></p>
+                                <p>Tokens: <span id="token-count">0</span></p>
+                            </div>
+                            <p>Prompt: <span id="prompt-text"></span></p>
+                        </div>
+                        <div class="info-column">
+                            <h4>Información del modelo</h4>
+                            <p>Modelo: <span id="model-name"></span></p>
+                            <p>Vocabulario: <span id="model-vocab"></span></p>
+                            <p>Parámetros totales: <span id="model-params"></span></p>
+                            <p>Capas: <span id="model-layers"></span></p>
+                            <p>Dispositivo: <span id="model-device"></span></p>
+                            <p>Contexto máximo: <span id="model-context"></span></p>
+                            <p>Embedding size: <span id="model-embedding"></span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="responses-container" id="responsesContainer">
+                <div class="response" id="response-0.1">
+                    <h3>Temperatura: 0.1</h3>
+                    <div class="response-content"></div>
+                </div>
+                <div class="response" id="response-0.5">
+                    <h3>Temperatura: 0.5</h3>
+                    <div class="response-content"></div>
+                </div>
+                <div class="response" id="response-0.9">
+                    <h3>Temperatura: 0.9</h3>
+                    <div class="response-content"></div>
                 </div>
             </div>
         </main>
-        
-        <footer>
-            <p>Desarrollado con ❤️ usando FastAPI y PyTorch</p>
-        </footer>
+
+        <div class="loading-container" id="loadingContainer">
+            <div class="loading-wheel"></div>
+            <p class="loading-text" id="loadingText">Generando respuestas...</p>
+        </div>
     </div>
-    
+
     <script src="/static/scripts/main.js"></script>
 </body>
 </html> 

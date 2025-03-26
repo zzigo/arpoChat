@@ -1,22 +1,27 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const userInput = document.getElementById('user-input');
-    const sendButton = document.getElementById('send-button');
-    const chatHistory = document.getElementById('chat-history');
-    const generationInfo = document.querySelector('.generation-info');
-    const responsesContainer = document.querySelector('.responses-container');
+    const userInput = document.getElementById('userInput');
+    const sendButton = document.getElementById('sendButton');
+    const chatHistory = document.getElementById('chatHistory');
+    const responsesContainer = document.getElementById('responsesContainer');
+    const generationInfo = document.getElementById('generationInfo');
+    const loadingContainer = document.getElementById('loadingContainer');
+    const loadingText = document.getElementById('loadingText');
 
-    // Add loading elements
-    const loadingWheel = document.createElement('div');
-    loadingWheel.className = 'loading-wheel';
-    const loadingText = document.createElement('div');
-    loadingText.className = 'loading-text';
-    chatHistory.appendChild(loadingWheel);
-    chatHistory.appendChild(loadingText);
+    // Hide generation info and responses by default
+    generationInfo.style.display = 'none';
+    responsesContainer.style.display = 'none';
+    loadingContainer.style.display = 'none';
+
+    // Stats elements
+    const charCount = document.getElementById('char-count');
+    const wordCount = document.getElementById('word-count');
+    const tokenCount = document.getElementById('token-count');
+    const promptText = document.getElementById('prompt-text');
 
     const loadingMessages = [
         "Procesando tu solicitud...",
         "Analizando el contexto...",
-        "Generando respuesta creativa...",
+        "Generando motores poéticos...",
         "Aplicando reglas lingüísticas...",
         "Refinando el texto generado..."
     ];
@@ -44,8 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let startTime = Date.now();
         let messageIndex = 0;
 
-        loadingWheel.classList.add('active');
-        loadingText.classList.add('active');
+        loadingContainer.style.display = 'flex';
 
         return new Promise(resolve => {
             const updateMessage = () => {
@@ -58,8 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             setTimeout(() => {
                 clearInterval(messageInterval);
-                loadingWheel.classList.remove('active');
-                loadingText.classList.remove('active');
+                loadingContainer.style.display = 'none';
                 resolve();
             }, duration);
         });
@@ -89,126 +92,121 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
     };
 
-    const updateStats = (text) => {
-        document.getElementById('char-count').textContent = text.length;
-        document.getElementById('word-count').textContent = text.split(/\s+/).filter(Boolean).length;
-        document.getElementById('token-count').textContent = Math.ceil(text.length / 4); // Approximate
-        document.getElementById('prompt-text').textContent = text.slice(0, 50) + (text.length > 50 ? '...' : '');
-    };
+    function toggleInfo() {
+        const content = document.getElementById('infoContent');
+        const icon = document.querySelector('.toggle-icon');
+        content.classList.toggle('expanded');
+        icon.style.transform = content.classList.contains('expanded') ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
 
-    const generateResponses = async (prompt) => {
-        try {
-            const temperatures = [0.2, 0.5, 0.9];
-            const baseUrl = getBaseUrl();
-            
-            // Start loading animation
-            isGenerating = true;
-            sendButton.disabled = true;
-
-            // Simulate loading time
-            await simulateLoading();
-
-            const response = await fetch(`${baseUrl}/generate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    prompt,
-                    max_length: 200,
-                    temperatures: temperatures
-                })
-            });
-
-            if (!response.ok) {
-                if (response.status === 502) {
-                    throw new Error('El servidor está iniciándose. Por favor, espera unos momentos y vuelve a intentarlo.');
-                }
-                const errorText = await response.text();
-                console.error('API Error:', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    error: errorText,
-                    endpoint: `${baseUrl}/generate`,
-                    headers: Object.fromEntries(response.headers.entries())
-                });
-                throw new Error(`Error del servidor: ${response.status}`);
-            }
-
-            let data;
-            try {
-                data = await response.json();
-            } catch (parseError) {
-                console.error('JSON Parse Error:', parseError);
-                throw new Error('Formato de respuesta inválido');
-            }
-            
-            if (!data.success) {
-                console.error('Generation failed:', data);
-                throw new Error(data.error || 'La generación falló');
-            }
-
-            generationInfo.classList.remove('hidden');
-            responsesContainer.classList.remove('hidden');
-            
-            data.responses.forEach((response, index) => {
-                const temp = temperatures[index];
-                const responseElement = document.getElementById(`response-${temp}`);
-                if (responseElement) {
-                    responseElement.innerHTML = styleSpecialWords(response.text);
-                    updateStats(response.text);
-                }
-            });
-
-            if (data.stats) {
-                document.getElementById('char-count').textContent = data.stats.total_chars || 0;
-                document.getElementById('word-count').textContent = data.stats.total_words || 0;
-                document.getElementById('token-count').textContent = data.stats.total_tokens || 0;
-                document.getElementById('prompt-text').textContent = data.prompt;
-            }
-
-        } catch (error) {
-            console.error('Error details:', {
-                error,
-                location: window.location.href,
-                timestamp: new Date().toISOString()
-            });
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'message error';
-            errorDiv.textContent = error.message;
-            chatHistory.appendChild(errorDiv);
-            
-            generationInfo.classList.add('hidden');
-            responsesContainer.classList.add('hidden');
-        } finally {
-            isGenerating = false;
-            sendButton.disabled = false;
-            loadingWheel.classList.remove('active');
-            loadingText.classList.remove('active');
+    function updateStats(responses, prompt, modelInfo) {
+        // Update prompt text
+        document.getElementById('prompt-text').textContent = prompt;
+        
+        // Calculate total characters and words from all responses
+        const totalChars = responses.reduce((sum, response) => sum + (response?.length || 0), 0);
+        const totalWords = responses.reduce((sum, response) => sum + (response?.split(/\s+/).length || 0), 0);
+        
+        // Update stats
+        document.getElementById('char-count').textContent = totalChars;
+        document.getElementById('word-count').textContent = totalWords;
+        document.getElementById('token-count').textContent = Math.round(totalWords * 1.3); // Rough estimate
+        
+        // Update model info if available
+        if (modelInfo) {
+            document.getElementById('model-name').textContent = modelInfo.name || 'N/A';
+            document.getElementById('model-vocab').textContent = modelInfo.vocab_size?.toLocaleString() || 'N/A';
+            document.getElementById('model-params').textContent = modelInfo.total_params?.toLocaleString() || 'N/A';
+            document.getElementById('model-layers').textContent = modelInfo.n_layer || 'N/A';
+            document.getElementById('model-device').textContent = modelInfo.device || 'N/A';
+            document.getElementById('model-context').textContent = modelInfo.n_positions?.toLocaleString() || 'N/A';
+            document.getElementById('model-embedding').textContent = modelInfo.n_embd?.toLocaleString() || 'N/A';
         }
-    };
+    }
+
+    async function generateResponses(prompt) {
+        try {
+            const temperatures = [0.1, 0.5, 0.9];
+            const responses = [];
+            let modelInfo = null;
+
+            // Generate responses for each temperature
+            for (const temp of temperatures) {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        prompt,
+                        temperature: temp,
+                        custom_prompt: "make an argentine poem departing from prompt, using each phrase as a module with multiple interconnections with next verses and words, semantic, syntatic, phonetic, oneiric, narrative , or nonsense. Give a sense of unity to each strophe entangling meanings , alternating between logical and unreallistic abstract symbolics"
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (data.status === 'success' && data.responses && data.responses.length > 0) {
+                    responses.push(data.responses[0]); // Take the first response from the array
+                    modelInfo = data.model_info; // Store model info from the first response
+                } else {
+                    throw new Error('No valid response received from the API');
+                }
+            }
+
+            return { responses, modelInfo };
+        } catch (error) {
+            console.error('API Error:', error);
+            throw error;
+        }
+    }
 
     const handleSubmit = async () => {
         const prompt = userInput.value.trim();
-        if (!prompt || isGenerating) return;
+        if (!prompt) return;
 
-        isGenerating = true;
+        // Disable input and button
+        userInput.disabled = true;
         sendButton.disabled = true;
 
-        // Add user message
-        const userMessage = document.createElement('div');
-        userMessage.className = 'message user-message';
-        userMessage.textContent = prompt;
-        chatHistory.appendChild(userMessage);
+        // Show loading state
+        loadingContainer.style.display = 'flex';
+        loadingText.textContent = 'Generando respuestas...';
 
-        // Clear input
-        userInput.value = '';
+        try {
+            // Add user message to chat history
+            addMessageToChat('user', prompt);
 
-        // Generate responses
-        await generateResponses(prompt);
+            // Generate responses for each temperature
+            const { responses, modelInfo } = await generateResponses(prompt);
 
-        userInput.focus();
+            // Show generation info and responses
+            generationInfo.style.display = 'block';
+            responsesContainer.style.display = 'grid';
+
+            // Update responses
+            updateResponses(responses);
+
+            // Update stats and model info
+            updateStats(responses, prompt, modelInfo);
+
+            // Clear input
+            userInput.value = '';
+        } catch (error) {
+            console.error('Error:', error);
+            addMessageToChat('error', 'Error al generar respuestas. Por favor, intenta de nuevo.');
+        } finally {
+            // Re-enable input and button
+            userInput.disabled = false;
+            sendButton.disabled = false;
+            userInput.focus();
+
+            // Hide loading state
+            loadingContainer.style.display = 'none';
+        }
     };
 
     sendButton.addEventListener('click', handleSubmit);
@@ -225,4 +223,26 @@ document.addEventListener('DOMContentLoaded', () => {
         userInput.style.height = 'auto';
         userInput.style.height = userInput.scrollHeight + 'px';
     });
+
+    function addMessageToChat(type, content) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${type}-message`;
+        messageDiv.textContent = content;
+        chatHistory.appendChild(messageDiv);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    function updateResponses(responses) {
+        const responseElements = document.querySelectorAll('.response-content');
+        responseElements.forEach((element, index) => {
+            if (responses[index]) {
+                element.textContent = responses[index];
+            } else {
+                element.textContent = 'No se pudo generar una respuesta.';
+            }
+        });
+    }
+
+    // Initialize
+    userInput.focus();
 }); 

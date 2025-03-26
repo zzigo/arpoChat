@@ -21,7 +21,7 @@ services:
     disk:
       name: cache
       mountPath: /tmp/.cache
-      sizeGB: 1
+      sizeGB: 10
     healthCheckPath: /health
     autoDeploy: true
     numInstances: 1 
