@@ -1,24 +1,27 @@
-import os
-import logging
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Optional, List
-from api.generate import get_model, generate_text, _tokenizer
-from transformers import AutoTokenizer
+from typing import List, Optional
+import logging
+from api.generate import generate_text, get_model
+import os
 
 # Configure logging
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+app = FastAPI(
+    title="ArpoChat API",
+    description="API for ArpoChat text generation",
+    version="1.0.0"
+)
 
-# Configure CORS
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -27,97 +30,64 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Get the absolute path to the public directory
-PUBLIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "public")
-STATIC_DIR = os.path.join(PUBLIC_DIR, "static")
-
-# Mount static files directory
-app.mount("/static", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+# Mount static files
+app.mount("/static", StaticFiles(directory="public/static"), name="static")
 
 class GenerateRequest(BaseModel):
     prompt: str
-    max_length: Optional[int] = 1000
-    temperatures: Optional[List[float]] = [0.2, 0.5, 0.8]
+    max_length: Optional[int] = 100
+    temperature: Optional[float] = 0.8
 
-@app.get("/")
-async def root():
-    """Serve the main HTML page"""
-    index_path = os.path.join(PUBLIC_DIR, "index.html")
-    if not os.path.exists(index_path):
-        raise HTTPException(status_code=404, detail="Index file not found")
-    return FileResponse(index_path)
+@app.get("/health")
+async def health_check():
+    """Health check endpoint to verify model status."""
+    try:
+        model = get_model()
+        if model is None:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "error", "message": "Model not loaded"}
+            )
+        return JSONResponse(
+            content={"status": "ok", "message": "Model loaded and ready"}
+        )
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "message": str(e)}
+        )
 
 @app.post("/generate")
 async def generate(request: GenerateRequest):
-    """Generate text based on the prompt with multiple temperatures, finish all phrases and words and try to connect phrases evolving the text in big archs of expression, either dadaistic, oneiric, surrealist, or concrete using rhime"""
+    """Generate text from a prompt."""
     try:
         logger.info(f"Received generation request with prompt: {request.prompt[:50]}...")
         
-        # Get the model (this will load it if not already loaded)
-        model = get_model()
-        if not model:
-            logger.error("Failed to load model")
-            raise HTTPException(status_code=500, detail="Failed to load model")
+        # Validate input
+        if not request.prompt.strip():
+            raise HTTPException(status_code=400, detail="Prompt cannot be empty")
         
-        # Generate text for each temperature
-        responses = []
-        total_chars = 0
-        total_words = 0
-        total_tokens = 0
+        # Generate text
+        responses = generate_text(
+            prompt=request.prompt,
+            max_length=request.max_length,
+            temperature=request.temperature
+        )
         
-        for temp in request.temperatures:
-            generated_text = generate_text(
-                model=model,
-                prompt=request.prompt,
-                max_length=request.max_length,
-                temperature=temp
-            )
-            
-            # Calculate stats
-            chars = len(generated_text)
-            words = len(generated_text.split())
-            tokens = len(_tokenizer.encode(generated_text)) if _tokenizer else 0
-            
-            responses.append({
-                "temperature": temp,
-                "text": generated_text,
-                "stats": {
-                    "chars": chars,
-                    "words": words,
-                    "tokens": tokens
-                }
-            })
-            
-            total_chars += chars
-            total_words += words
-            total_tokens += tokens
-        
-        logger.info("Text generation successful")
-        return JSONResponse(content={
-            "success": True,
-            "prompt": request.prompt,
-            "responses": responses,
-            "stats": {
-                "total_chars": total_chars,
-                "total_words": total_words,
-                "total_tokens": total_tokens,
-                "avg_words_per_response": total_words / len(request.temperatures),
-                "avg_tokens_per_response": total_tokens / len(request.temperatures)
+        return JSONResponse(
+            content={
+                "status": "success",
+                "responses": responses,
+                "prompt": request.prompt
             }
-        })
-        
+        )
     except Exception as e:
-        logger.error(f"Error in /generate endpoint: {str(e)}")
+        logger.error(f"Error generating text: {str(e)}")
         return JSONResponse(
             status_code=500,
             content={
-                "success": False,
-                "error": str(e),
-                "message": "Lo siento, hubo un error generando la respuesta"
+                "status": "error",
+                "message": f"Error generating text: {str(e)}"
             }
-        )
-
-@app.get("/health")
-async def health():
-    """Health check endpoint"""
-    return {"status": "ok"} 
+        ) 

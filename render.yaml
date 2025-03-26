@@ -3,17 +3,23 @@ services:
     name: arpochat
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level info
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.10.13
-      - key: TRANSFORMERS_CACHE
+        value: 3.11
+      - key: HF_TOKEN
+        sync: false
+      - key: HF_HOME
         value: /tmp/.cache/huggingface
+      - key: HF_HUB_CACHE
+        value: /tmp/.cache/huggingface/hub
       - key: TORCH_HOME
         value: /tmp/.cache/torch
-      - key: LOG_LEVEL
-        value: info
+    plan: free
+    disk:
+      name: cache
+      mountPath: /tmp/.cache
+      sizeGB: 1
     healthCheckPath: /health
     autoDeploy: true
-    numInstances: 1
-    plan: free 
+    numInstances: 1 
