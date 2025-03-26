@@ -1,12 +1,12 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import List, Optional
-import logging
-from api.generate import generate_text, get_model
 import os
+from typing import Optional
+import logging
+from .generate import generate_text, get_model
 
 # Configure logging
 logging.basicConfig(
@@ -32,6 +32,7 @@ app.add_middleware(
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="public/static"), name="static")
+app.mount("/", StaticFiles(directory="public", html=True), name="public")
 
 class GenerateRequest(BaseModel):
     prompt: str
@@ -58,7 +59,7 @@ async def health_check():
             content={"status": "error", "message": str(e)}
         )
 
-@app.post("/generate")
+@app.post("/api/generate")
 async def generate(request: GenerateRequest):
     """Generate text from a prompt."""
     try:
