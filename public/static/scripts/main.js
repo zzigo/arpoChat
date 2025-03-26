@@ -11,7 +11,7 @@ window.toggleInfo = function() {
 // Dynamic base URL for local and Render environments
 const BASE_URL = window.location.hostname === 'localhost' 
     ? 'http://localhost:8004' 
-    : 'https://arpochat.onrender.com';
+    : 'http://69.62.112.116:8004/';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Get DOM elements
