@@ -15,6 +15,8 @@ services:
         value: /tmp/.cache/huggingface/hub
       - key: TORCH_HOME
         value: /tmp/.cache/torch
+      - key: LOG_LEVEL
+        value: info
     plan: free
     disk:
       name: cache
