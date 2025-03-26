@@ -4,9 +4,10 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import os
-from typing import Optional
+from typing import Optional, List
 import logging
-from .generate import generate_text, get_model
+from .generate import generate_text, get_model, get_model_info, _tokenizer, _model
+import traceback
 
 # Configure logging
 logging.basicConfig(
@@ -36,6 +37,15 @@ class GenerateRequest(BaseModel):
     temperature: Optional[float] = 0.8
     custom_prompt: Optional[str] = None
 
+class GenerationRequest(BaseModel):
+    prompt: str
+    temperature: Optional[float] = 0.7
+    max_length: Optional[int] = 3000
+    top_k: Optional[int] = 100
+    top_p: Optional[float] = 0.9
+    repetition_penalty: Optional[float] = 1.5
+    custom_prompt: Optional[str] = None
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint to verify model status."""
@@ -56,54 +66,61 @@ async def health_check():
             content={"status": "error", "message": str(e)}
         )
 
-@app.post("/generate")
-async def generate(request: GenerateRequest):
-    """Generate text from a prompt."""
+@app.get("/model-info")
+async def get_model_information():
+    """Get information about the loaded model."""
     try:
-        logger.info(f"Received generation request with prompt: {request.prompt[:50]}...")
+        return get_model_info()
+    except Exception as e:
+        logger.error(f"Error getting model info: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/generate")
+async def generate(request: Request):
+    """Generate text based on the prompt."""
+    try:
+        # Get request body
+        body = await request.json()
+        prompt = body.get("prompt", "")
         
-        # Validate input
-        if not request.prompt.strip():
-            raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+        # Log the request
+        logger.info(f"Received generation request with prompt: {prompt}")
         
-        # Get model info
-        model = get_model()
-        model_info = {
-            "name": model.config.name_or_path,
-            "vocab_size": model.config.vocab_size,
-            "n_positions": model.config.n_positions,
-            "n_ctx": model.config.n_ctx,
-            "n_embd": model.config.n_embd,
-            "n_layer": model.config.n_layer,
-            "n_head": model.config.n_head,
-            "total_params": sum(p.numel() for p in model.parameters()),
-            "device": str(next(model.parameters()).device)
+        # Extract generation parameters with defaults
+        params = {
+            "temperature": body.get("temperature", 0.9),
+            "max_length": body.get("max_length", 1024),
+            "num_beams": body.get("num_beams", 4),
+            "no_repeat_ngram_size": body.get("no_repeat_ngram_size", 3),
+            "length_penalty": body.get("length_penalty", 2.0),
+            "top_k": body.get("top_k", 50),
+            "top_p": body.get("top_p", 0.95),
+            "repetition_penalty": body.get("repetition_penalty", 1.2)
         }
         
         # Generate text
-        responses = generate_text(
-            prompt=request.prompt,
-            max_length=request.max_length,
-            temperature=request.temperature,
-            custom_prompt=request.custom_prompt
-        )
+        generated_text = generate_text(prompt, **params)
         
-        return JSONResponse(
-            content={
-                "status": "success",
-                "responses": responses,
-                "prompt": request.prompt,
-                "model_info": model_info
+        # Return response
+        return {
+            "generated_texts": [generated_text],
+            "model_info": {
+                "name": "ArPoChat",
+                "vocab_size": len(_tokenizer),
+                "total_params": sum(p.numel() for p in _model.parameters()),
+                "n_layer": _model.config.n_layer,
+                "device": str(_model.device),
+                "n_positions": _model.config.n_positions,
+                "n_embd": _model.config.n_embd
             }
-        )
+        }
+        
     except Exception as e:
-        logger.error(f"Error generating text: {str(e)}")
-        return JSONResponse(
+        logger.error(f"Error in generate endpoint: {str(e)}")
+        raise HTTPException(
             status_code=500,
-            content={
-                "status": "error",
-                "message": f"Error generating text: {str(e)}"
-            }
+            detail=f"Error generating text: {str(e)}"
         )
 
 # Mount static files AFTER all API routes

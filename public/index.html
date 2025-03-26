@@ -3,85 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ArpoChat</title>
+    <title>ArPoChat - Generador de Poesía Argentina</title>
     <link rel="stylesheet" href="/static/styles/main.css">
-    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-    <link rel="apple-touch-icon" sizes="180x180" href="/static/favicons/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicons/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/static/favicons/favicon-16x16.png">
     <link rel="manifest" href="/site.webmanifest">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>ArpoChat</h1>
-            <p class="subtitle">Generador de texto poético</p>
-        </header>
+    <header class="header">
+        <h1 class="title">ArPoChat</h1>
+        <button class="info-button" onclick="toggleInfo()">
+            <svg class="info-icon" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+            </svg>
+        </button>
+    </header>
 
-        <main>
-            <div class="chat-container">
-                <div class="chat-history" id="chatHistory"></div>
-                <div class="input-container">
-                    <textarea 
-                        id="userInput" 
-                        placeholder="Escribe tu prompt aquí..."
-                        rows="3"
-                    ></textarea>
-                    <button id="sendButton">Enviar</button>
-                </div>
+    <main class="main-container">
+        <div class="input-container">
+            <textarea id="userInput" class="prompt-input" rows="3" placeholder="Escribe tu prompt aquí..."></textarea>
+            <div class="button-container">
+                <button id="generateButton" class="generate-button">Generar</button>
+                <button id="clearButton" class="clear-button">Limpiar</button>
             </div>
+        </div>
 
-            <div class="generation-info" id="generationInfo">
-                <div class="info-header" onclick="toggleInfo()">
-                    <h3>Información de modelos y generación</h3>
-                    <span class="toggle-icon">▼</span>
+        <div id="loadingContainer" class="loading-container">
+            <div id="loadingText" class="loading-text">Procesando tu solicitud...</div>
+        </div>
+
+        <div id="generationInfo" class="generation-info">
+            <div class="stats">
+                <p>Caracteres: <span id="char-count">0</span></p>
+                <p>Palabras: <span id="word-count">0</span></p>
+                <p>Tokens: <span id="token-count">0</span></p>
+                <p>Último prompt: <span id="prompt-text"></span></p>
+            </div>
+        </div>
+
+        <div class="responses-container" id="responsesContainer">
+            <div class="responses-grid">
+                <div class="response-column" id="lowTempColumn">
+                    <div class="response-column-header">
+                        <h3>Conservador (T=0.1)</h3>
+                        <p class="temperature-low">Más fiel al entrenamiento</p>
+                    </div>
                 </div>
-                <div class="info-content" id="infoContent">
-                    <div class="info-columns">
-                        <div class="info-column">
-                            <h4>Estadísticas de generación</h4>
-                            <div class="stats">
-                                <p>Caracteres: <span id="char-count">0</span></p>
-                                <p>Palabras: <span id="word-count">0</span></p>
-                                <p>Tokens: <span id="token-count">0</span></p>
-                            </div>
-                            <p>Prompt: <span id="prompt-text"></span></p>
-                        </div>
-                        <div class="info-column">
-                            <h4>Información del modelo</h4>
-                            <p>Modelo: <span id="model-name"></span></p>
-                            <p>Vocabulario: <span id="model-vocab"></span></p>
-                            <p>Parámetros totales: <span id="model-params"></span></p>
-                            <p>Capas: <span id="model-layers"></span></p>
-                            <p>Dispositivo: <span id="model-device"></span></p>
-                            <p>Contexto máximo: <span id="model-context"></span></p>
-                            <p>Embedding size: <span id="model-embedding"></span></p>
-                        </div>
+                <div class="response-column" id="medTempColumn">
+                    <div class="response-column-header">
+                        <h3>Balanceado (T=0.5)</h3>
+                        <p class="temperature-med">Equilibrio creativo</p>
+                    </div>
+                </div>
+                <div class="response-column" id="highTempColumn">
+                    <div class="response-column-header">
+                        <h3>Experimental (T=0.9)</h3>
+                        <p class="temperature-high">Máxima creatividad</p>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <div class="responses-container" id="responsesContainer">
-                <div class="response" id="response-0.1">
-                    <h3>Temperatura: 0.1</h3>
-                    <div class="response-content"></div>
-                </div>
-                <div class="response" id="response-0.5">
-                    <h3>Temperatura: 0.5</h3>
-                    <div class="response-content"></div>
-                </div>
-                <div class="response" id="response-0.9">
-                    <h3>Temperatura: 0.9</h3>
-                    <div class="response-content"></div>
+        <div class="error-message" id="errorMessage"></div>
+    </main>
+
+    <div class="modal-overlay" id="modalOverlay" onclick="toggleInfo()"></div>
+    <div class="info-modal" id="infoModal">
+        <button class="close-modal" onclick="toggleInfo()">×</button>
+        <div class="info-grid">
+            <div class="info-column">
+                <h3>Estadísticas de generación</h3>
+                <div id="generationStats">
+                    <!-- Generation stats will be inserted here -->
                 </div>
             </div>
-        </main>
-
-        <div class="loading-container" id="loadingContainer">
-            <div class="loading-wheel"></div>
-            <p class="loading-text" id="loadingText">Generando respuestas...</p>
+            <div class="info-column">
+                <h3>Información del modelo</h3>
+                <div id="modelInfo">
+                    <p>Nombre: <span id="model-name">-</span></p>
+                    <p>Vocabulario: <span id="model-vocab">-</span></p>
+                    <p>Parámetros: <span id="model-params">-</span></p>
+                    <p>Capas: <span id="model-layers">-</span></p>
+                    <p>Dispositivo: <span id="model-device">-</span></p>
+                    <p>Contexto: <span id="model-context">-</span></p>
+                    <p>Embedding: <span id="model-embedding">-</span></p>
+                </div>
+            </div>
         </div>
     </div>
+
+    <template id="generationTemplate">
+        <div class="generation-item">
+            <div class="prompt-text">Prompt: {{prompt}}</div>
+            <div class="generated-text">{{text}}</div>
+        </div>
+    </template>
 
     <script src="/static/scripts/main.js"></script>
 </body>

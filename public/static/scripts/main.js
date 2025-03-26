@@ -1,22 +1,55 @@
+// Add this at the beginning of the file, before any other code
+window.toggleInfo = function() {
+    const infoModal = document.getElementById('infoModal');
+    const modalOverlay = document.getElementById('modalOverlay');
+    if (infoModal && modalOverlay) {
+        infoModal.classList.toggle('visible');
+        modalOverlay.classList.toggle('visible');
+    }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
-    const userInput = document.getElementById('userInput');
-    const sendButton = document.getElementById('sendButton');
-    const chatHistory = document.getElementById('chatHistory');
-    const responsesContainer = document.getElementById('responsesContainer');
-    const generationInfo = document.getElementById('generationInfo');
-    const loadingContainer = document.getElementById('loadingContainer');
-    const loadingText = document.getElementById('loadingText');
+    // Get DOM elements
+    const elements = {
+        userInput: document.getElementById('userInput'),
+        generateButton: document.getElementById('generateButton'),
+        clearButton: document.getElementById('clearButton'),
+        responsesContainer: document.getElementById('responsesContainer'),
+        errorMessage: document.getElementById('errorMessage'),
+        inputContainer: document.querySelector('.input-container'),
+        infoModal: document.getElementById('infoModal'),
+        modalOverlay: document.getElementById('modalOverlay'),
+        generationStats: document.getElementById('generationStats'),
+        chatHistory: document.getElementById('chatHistory'),
+        generationInfo: document.getElementById('generationInfo'),
+        loadingContainer: document.getElementById('loadingContainer'),
+        loadingText: document.getElementById('loadingText')
+    };
 
-    // Hide generation info and responses by default
-    generationInfo.style.display = 'none';
-    responsesContainer.style.display = 'none';
-    loadingContainer.style.display = 'none';
+    // Only initialize if required elements exist
+    if (!elements.userInput || !elements.generateButton) {
+        console.error('Required elements not found');
+        return;
+    }
 
-    // Stats elements
-    const charCount = document.getElementById('char-count');
-    const wordCount = document.getElementById('word-count');
-    const tokenCount = document.getElementById('token-count');
-    const promptText = document.getElementById('prompt-text');
+    // Hide elements only if they exist
+    if (elements.generationInfo) {
+        elements.generationInfo.style.display = 'none';
+    }
+    if (elements.responsesContainer) {
+        elements.responsesContainer.style.display = 'none';
+    }
+    if (elements.loadingContainer) {
+        elements.loadingContainer.style.display = 'none';
+    }
+
+    // Stats elements - only get if they exist
+    const stats = {
+        charCount: document.getElementById('char-count'),
+        wordCount: document.getElementById('word-count'),
+        tokenCount: document.getElementById('token-count'),
+        promptText: document.getElementById('prompt-text')
+    };
 
     const loadingMessages = [
         "Procesando tu solicitud...",
@@ -26,43 +59,35 @@ document.addEventListener('DOMContentLoaded', () => {
         "Refinando el texto generado..."
     ];
 
-    // Get the base URL dynamically
-    const getBaseUrl = () => {
-        // For local development
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            return 'http://localhost:8004';
-        }
-        // For production on Render
-        if (window.location.hostname.includes('onrender.com')) {
-            // Use HTTPS in production
-            return `https://${window.location.host}`;
-        }
-        // Fallback to current origin
-        return window.location.origin;
-    };
-
     let isGenerating = false;
+    let isFirstGeneration = true;
+    let generationHistory = [];
 
     const simulateLoading = async () => {
-        const duration = Math.floor(Math.random() * (20000 - 15000 + 1)) + 15000; // Random between 15-20 seconds
-        const intervalDuration = 3000; // Change message every 3 seconds
-        let startTime = Date.now();
+        if (!elements.loadingContainer || !elements.loadingText) return;
+
+        const duration = Math.floor(Math.random() * (8000 - 5000 + 1)) + 5000;
+        const intervalDuration = 2000;
         let messageIndex = 0;
 
-        loadingContainer.style.display = 'flex';
+        elements.loadingContainer.style.display = 'flex';
 
         return new Promise(resolve => {
             const updateMessage = () => {
-                loadingText.textContent = loadingMessages[messageIndex];
-                messageIndex = (messageIndex + 1) % loadingMessages.length;
+                if (elements.loadingText) {
+                    elements.loadingText.textContent = loadingMessages[messageIndex];
+                    messageIndex = (messageIndex + 1) % loadingMessages.length;
+                }
             };
 
-            updateMessage(); // Show first message immediately
+            updateMessage();
             const messageInterval = setInterval(updateMessage, intervalDuration);
 
             setTimeout(() => {
                 clearInterval(messageInterval);
-                loadingContainer.style.display = 'none';
+                if (elements.loadingContainer) {
+                    elements.loadingContainer.style.display = 'none';
+                }
                 resolve();
             }, duration);
         });
@@ -92,11 +117,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
     };
 
-    function toggleInfo() {
-        const content = document.getElementById('infoContent');
-        const icon = document.querySelector('.toggle-icon');
-        content.classList.toggle('expanded');
-        icon.style.transform = content.classList.contains('expanded') ? 'rotate(180deg)' : 'rotate(0deg)';
+    function getModelInfo() {
+        return JSON.parse(localStorage.getItem('modelInfo') || '{}');
+    }
+
+    function setModelInfo(info) {
+        localStorage.setItem('modelInfo', JSON.stringify(info));
+    }
+
+    function updateModelInfo(info) {
+        const modelInfo = getModelInfo();
+        Object.assign(modelInfo, info);
+        setModelInfo(modelInfo);
     }
 
     function updateStats(responses, prompt, modelInfo) {
@@ -114,6 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Update model info if available
         if (modelInfo) {
+            updateModelInfo(modelInfo);
             document.getElementById('model-name').textContent = modelInfo.name || 'N/A';
             document.getElementById('model-vocab').textContent = modelInfo.vocab_size?.toLocaleString() || 'N/A';
             document.getElementById('model-params').textContent = modelInfo.total_params?.toLocaleString() || 'N/A';
@@ -124,125 +157,217 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function generateResponses(prompt) {
-        try {
-            const temperatures = [0.1, 0.5, 0.9];
-            const responses = [];
-            let modelInfo = null;
-
-            // Generate responses for each temperature
-            for (const temp of temperatures) {
-                const response = await fetch('/generate', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ 
-                        prompt,
-                        temperature: temp,
-                        custom_prompt: "make an argentine poem departing from prompt, using each phrase as a module with multiple interconnections with next verses and words, semantic, syntatic, phonetic, oneiric, narrative , or nonsense. Give a sense of unity to each strophe entangling meanings , alternating between logical and unreallistic abstract symbolics"
-                    }),
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data = await response.json();
-                if (data.status === 'success' && data.responses && data.responses.length > 0) {
-                    responses.push(data.responses[0]); // Take the first response from the array
-                    modelInfo = data.model_info; // Store model info from the first response
+    function addToHistory(prompt, responses) {
+        const template = document.getElementById('generationTemplate');
+        if (!template) return;
+        
+        // Get column elements
+        const columns = {
+            low: document.getElementById('lowTempColumn'),
+            med: document.getElementById('medTempColumn'),
+            high: document.getElementById('highTempColumn')
+        };
+        
+        // Add each response to its corresponding column
+        responses.forEach(response => {
+            const clone = template.content.cloneNode(true);
+            clone.querySelector('.prompt-text').textContent = `Prompt: ${prompt}`;
+            clone.querySelector('.generated-text').textContent = response.text;
+            
+            // Determine which column to use based on temperature
+            let column;
+            if (response.temperature === 0.1) column = columns.low;
+            else if (response.temperature === 0.5) column = columns.med;
+            else if (response.temperature === 0.9) column = columns.high;
+            
+            if (column) {
+                // Insert after the header
+                const header = column.querySelector('.response-column-header');
+                if (header) {
+                    header.insertAdjacentElement('afterend', clone.firstElementChild);
                 } else {
-                    throw new Error('No valid response received from the API');
+                    column.appendChild(clone);
                 }
-            }
-
-            return { responses, modelInfo };
-        } catch (error) {
-            console.error('API Error:', error);
-            throw error;
-        }
-    }
-
-    const handleSubmit = async () => {
-        const prompt = userInput.value.trim();
-        if (!prompt) return;
-
-        // Disable input and button
-        userInput.disabled = true;
-        sendButton.disabled = true;
-
-        // Show loading state
-        loadingContainer.style.display = 'flex';
-        loadingText.textContent = 'Generando respuestas...';
-
-        try {
-            // Add user message to chat history
-            addMessageToChat('user', prompt);
-
-            // Generate responses for each temperature
-            const { responses, modelInfo } = await generateResponses(prompt);
-
-            // Show generation info and responses
-            generationInfo.style.display = 'block';
-            responsesContainer.style.display = 'grid';
-
-            // Update responses
-            updateResponses(responses);
-
-            // Update stats and model info
-            updateStats(responses, prompt, modelInfo);
-
-            // Clear input
-            userInput.value = '';
-        } catch (error) {
-            console.error('Error:', error);
-            addMessageToChat('error', 'Error al generar respuestas. Por favor, intenta de nuevo.');
-        } finally {
-            // Re-enable input and button
-            userInput.disabled = false;
-            sendButton.disabled = false;
-            userInput.focus();
-
-            // Hide loading state
-            loadingContainer.style.display = 'none';
-        }
-    };
-
-    sendButton.addEventListener('click', handleSubmit);
-
-    userInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSubmit();
-        }
-    });
-
-    // Auto-resize textarea
-    userInput.addEventListener('input', () => {
-        userInput.style.height = 'auto';
-        userInput.style.height = userInput.scrollHeight + 'px';
-    });
-
-    function addMessageToChat(type, content) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${type}-message`;
-        messageDiv.textContent = content;
-        chatHistory.appendChild(messageDiv);
-        chatHistory.scrollTop = chatHistory.scrollHeight;
-    }
-
-    function updateResponses(responses) {
-        const responseElements = document.querySelectorAll('.response-content');
-        responseElements.forEach((element, index) => {
-            if (responses[index]) {
-                element.textContent = responses[index];
-            } else {
-                element.textContent = 'No se pudo generar una respuesta.';
             }
         });
     }
 
+    async function generateResponses(prompt) {
+        try {
+            const response = await fetch('http://localhost:8004/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    prompt: prompt,
+                    max_length: 512
+                }),
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.detail || 'Error generating text');
+            }
+
+            return data;
+        } catch (error) {
+            console.error('Generation error:', error);
+            throw error;
+        }
+    }
+
+    async function fetchModelInfo() {
+        try {
+            const response = await fetch('http://localhost:8004/model-info');
+            if (!response.ok) {
+                throw new Error('Failed to fetch model info');
+            }
+            const modelInfo = await response.json();
+            updateModelInfo(modelInfo);
+            displayModelInfo(modelInfo);
+        } catch (error) {
+            console.error('Error fetching model info:', error);
+        }
+    }
+
+    function displayModelInfo(info) {
+        if (!info) return;
+        
+        const elements = {
+            name: document.getElementById('model-name'),
+            vocab: document.getElementById('model-vocab'),
+            params: document.getElementById('model-params'),
+            layers: document.getElementById('model-layers'),
+            device: document.getElementById('model-device'),
+            context: document.getElementById('model-context'),
+            embedding: document.getElementById('model-embedding')
+        };
+
+        if (elements.name) elements.name.textContent = info.name || 'ArPoChat';
+        if (elements.vocab) elements.vocab.textContent = info.vocab_size?.toLocaleString() || '50,257';
+        if (elements.params) elements.params.textContent = info.total_params?.toLocaleString() || '124,439,808';
+        if (elements.layers) elements.layers.textContent = info.layers || '12';
+        if (elements.device) elements.device.textContent = info.device || 'CPU';
+        if (elements.context) elements.context.textContent = info.max_context || '1024';
+        if (elements.embedding) elements.embedding.textContent = info.embedding_size || '768';
+    }
+
+    async function handleSubmit() {
+        if (!elements.userInput || !elements.generateButton) return;
+
+        const prompt = elements.userInput.value.trim();
+        if (!prompt) return;
+
+        try {
+            elements.generateButton.disabled = true;
+            elements.generateButton.textContent = 'Generando...';
+            elements.errorMessage?.classList.remove('visible');
+            elements.loadingContainer.style.display = 'flex';
+
+            const response = await generateResponses(prompt);
+            
+            if (response?.generated_texts) {
+                addToHistory(prompt, response.generated_texts);
+                elements.userInput.value = '';
+                
+                // Update stats
+                const totalChars = response.generated_texts.reduce((sum, item) => sum + item.text.length, 0);
+                const totalWords = response.generated_texts.reduce((sum, item) => sum + item.text.split(/\s+/).length, 0);
+                
+                if (stats.charCount) stats.charCount.textContent = totalChars;
+                if (stats.wordCount) stats.wordCount.textContent = totalWords;
+                if (stats.tokenCount) stats.tokenCount.textContent = Math.round(totalWords * 1.3);
+                if (stats.promptText) stats.promptText.textContent = prompt;
+                
+                if (isFirstGeneration) {
+                    elements.inputContainer.classList.add('shifted');
+                    elements.responsesContainer.classList.add('visible');
+                    isFirstGeneration = false;
+                }
+            }
+        } catch (error) {
+            showError(error.message);
+        } finally {
+            elements.generateButton.disabled = false;
+            elements.generateButton.textContent = 'Generar';
+            elements.loadingContainer.style.display = 'none';
+        }
+    }
+
+    function handleClear() {
+        if (elements.userInput && elements.generateButton) {
+            elements.userInput.value = '';
+            elements.generateButton.disabled = true;
+        }
+    }
+
+    function updateGenerationStats(prompt, text) {
+        if (!elements.generationStats) return;
+        
+        const stats = {
+            characters: text.length,
+            words: text.split(/\s+/).length,
+            tokens: Math.round(text.length / 4), // Rough estimate
+        };
+        
+        elements.generationStats.innerHTML = `
+            <p>Caracteres: ${stats.characters}</p>
+            <p>Palabras: ${stats.words}</p>
+            <p>Tokens (est.): ${stats.tokens}</p>
+            <p>Último prompt: ${prompt}</p>
+        `;
+    }
+
+    function showError(message) {
+        if (!elements.errorMessage) return;
+        elements.errorMessage.textContent = message;
+        elements.errorMessage.classList.add('visible');
+    }
+
+    function scrollToLatest() {
+        window.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+        });
+    }
+
+    // Event Listeners
+    elements.userInput.addEventListener('input', (event) => {
+        if (elements.generateButton) {
+            elements.generateButton.disabled = !event.target.value.trim();
+        }
+    });
+
+    elements.generateButton.addEventListener('click', handleSubmit);
+
+    if (elements.clearButton) {
+        elements.clearButton.addEventListener('click', handleClear);
+    }
+
+    // Add keyboard event listeners
+    document.addEventListener('keydown', (event) => {
+        // Ctrl+I for info panel
+        if (event.ctrlKey && event.key.toLowerCase() === 'i') {
+            event.preventDefault(); // Prevent default browser behavior
+            toggleInfo();
+        }
+    });
+
+    // Add Enter key handler for input
+    elements.userInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault(); // Prevent newline
+            if (!elements.generateButton.disabled) {
+                handleSubmit();
+            }
+        }
+    });
+
     // Initialize
-    userInput.focus();
+    elements.generateButton.disabled = true;
+    elements.userInput.focus();
+
+    // Fetch model info when page loads
+    fetchModelInfo();
 }); 

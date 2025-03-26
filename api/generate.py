@@ -6,6 +6,10 @@ import logging
 from huggingface_hub import HfApi
 import gc
 from pathlib import Path
+import hashlib
+import re
+import traceback
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -22,167 +26,203 @@ api = HfApi(token=hf_token)
 # Model configuration
 MODEL_NAME = "animaratio/arpochat"
 MODEL_PATH = "model.pt"
-CACHE_DIR = os.getenv('HF_HOME', '/tmp/.cache/huggingface')
-MODEL_CACHE_DIR = os.path.join(CACHE_DIR, 'models')
+MODEL_INFO = {
+    "name": "ArpoChat",
+    "base_model": "gpt2",
+    "vocab_size": 50257,  # Same as GPT-2
+    "total_params": 124439808,  # Same as GPT-2 since it's fine-tuned
+    "layers": 12,
+    "max_context": 1024,
+    "embedding_size": 768,
+    "training_data": "Argentine poetry of last 30 years including visual artists",
+    "model_size": "497.8 MB",  # From HF repo
+    "architecture": "GPT-2 Base fine-tuned",
+    "license": "artistic-2.0"
+}
 
-# Ensure cache directory exists
-os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
+CACHE_DIR = Path("models")
+CACHE_DIR.mkdir(exist_ok=True)
+
+# Initialize device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+logger.info(f"Using device: {device}")
+
+# Initialize tokenizer and model
+_tokenizer = None
+_model = None
+
+def get_model_hash():
+    """Generate a hash of the model file to check for changes."""
+    try:
+        model_path = CACHE_DIR / MODEL_PATH
+        if model_path.exists():
+            with open(model_path, 'rb') as f:
+                return hashlib.md5(f.read()).hexdigest()
+    except Exception as e:
+        logger.warning(f"Error getting model hash: {str(e)}")
+    return None
 
 def load_model():
-    """Load the model with proper caching."""
-    try:
-        logger.info("Initializing tokenizer and model...")
-        # First verify token is valid
-        api.whoami()
-        
-        # Initialize with authentication
-        _tokenizer = GPT2Tokenizer.from_pretrained(
-            'gpt2',  # Use GPT2 tokenizer as base
-            token=hf_token,
-            local_files_only=False,
-            cache_dir=CACHE_DIR
-        )
-        
-        # Create a new model instance
-        _model = GPT2LMHeadModel.from_pretrained(
-            'gpt2',
-            token=hf_token,
-            local_files_only=False,
-            cache_dir=CACHE_DIR
-        )
-        
-        # Check if model is already cached
-        cached_model_path = os.path.join(MODEL_CACHE_DIR, MODEL_PATH)
-        if not os.path.exists(cached_model_path):
-            logger.info(f"Downloading trained model from {MODEL_NAME}...")
-            model_path = api.hf_hub_download(
-                repo_id=MODEL_NAME,
-                filename=MODEL_PATH,
-                token=hf_token,
-                local_dir=MODEL_CACHE_DIR,
-                local_dir_use_symlinks=False,
-                force_download=False
-            )
-        else:
-            logger.info("Using cached model...")
-            model_path = cached_model_path
-        
-        # Load the state dictionary into the model
-        state_dict = torch.load(model_path, map_location='cpu')
-        _model.load_state_dict(state_dict)
-        _model.eval()  # Set to evaluation mode
-        
-        # Move model to appropriate device
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        _model.to(device)
-        
-        logger.info("Model and tokenizer initialized successfully")
-        return _model, _tokenizer
-    except Exception as e:
-        logger.error(f"Error initializing model or tokenizer: {str(e)}")
-        raise
+    """Initialize the model and tokenizer if not already loaded."""
+    global _tokenizer, _model
+    
+    if _tokenizer is None or _model is None:
+        try:
+            logger.info("Starting model initialization...")
+            logger.info(f"Using device: {device}")
+            
+            # Initialize tokenizer and model with GPT-2 base
+            logger.info("Loading tokenizer from GPT-2...")
+            _tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+            
+            # Set up padding token
+            if _tokenizer.pad_token is None:
+                _tokenizer.pad_token = _tokenizer.eos_token
+                logger.info("Set padding token to EOS token")
+            
+            logger.info("Loading base model from GPT-2...")
+            _model = GPT2LMHeadModel.from_pretrained("gpt2")
+            
+            # Check if model is already cached
+            model_path = CACHE_DIR / MODEL_PATH
+            if model_path.exists():
+                logger.info("Found cached model, loading from cache...")
+            else:
+                logger.info(f"Downloading model from {MODEL_NAME}...")
+                model_path = api.hf_hub_download(
+                    repo_id=MODEL_NAME,
+                    filename=MODEL_PATH,
+                    local_dir=CACHE_DIR,
+                    local_dir_use_symlinks=False
+                )
+                logger.info(f"Model downloaded to: {model_path}")
+            
+            # Load the state dictionary
+            logger.info("Loading state dictionary...")
+            state_dict = torch.load(model_path, map_location=device)
+            logger.info("Applying state dictionary to model...")
+            _model.load_state_dict(state_dict)
+            
+            # Set model to evaluation mode
+            logger.info("Setting model to evaluation mode...")
+            _model.eval()
+            
+            # Move model to appropriate device
+            logger.info(f"Moving model to {device}...")
+            _model = _model.to(device)
+            
+            logger.info("Model and tokenizer initialized successfully")
+            
+        except Exception as e:
+            logger.error(f"Error initializing model: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            raise
 
-# Initialize model and tokenizer
-try:
-    _model, _tokenizer = load_model()
-except Exception as e:
-    logger.error(f"Failed to initialize model: {str(e)}")
-    raise
+# Load model on module import
+load_model()
 
 def get_model():
-    """Return the loaded model."""
-    return _model
+    """Initialize or return the model."""
+    global _model, _tokenizer
+    
+    try:
+        if _model is None:
+            logger.info("Initializing model and tokenizer...")
+            
+            # Model path (adjust if needed)
+            model_path = "model"
+            if not os.path.exists(model_path):
+                raise ValueError(f"Model path not found: {model_path}")
+            
+            # Load tokenizer
+            logger.info("Loading tokenizer...")
+            _tokenizer = AutoTokenizer.from_pretrained(model_path)
+            
+            # Set padding token if not set
+            if _tokenizer.pad_token is None:
+                _tokenizer.pad_token = _tokenizer.eos_token
+            
+            # Load model
+            logger.info("Loading model...")
+            _model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                torch_dtype=torch.float32,
+                low_cpu_mem_usage=True
+            )
+            
+            # Move model to device
+            _model = _model.to(device)
+            logger.info(f"Model loaded and moved to device: {device}")
+            
+            # Clear CUDA cache if available
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                
+        return _model
+        
+    except Exception as e:
+        logger.error(f"Error initializing model: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise
+
+def get_model_info():
+    """Get information about the model."""
+    model = get_model()
+    return {
+        "name": "ArPoChat",
+        "device": str(device),
+        "vocab_size": len(_tokenizer) if _tokenizer else None,
+        "model_size": sum(p.numel() for p in model.parameters()),
+        "requires_grad": any(p.requires_grad for p in model.parameters())
+    }
 
 def generate_text(
-    prompt: str,
-    max_length: int = 2000,  # Increased for longer poems
-    num_return_sequences: int = 4,
-    temperature: float = 0.7,  # Balanced between creativity and coherence
-    top_k: int = 100,  # Increased to allow more diverse vocabulary
-    top_p: float = 0.9,  # Higher value for more diverse outputs
-    repetition_penalty: float = 1.5,  # Increased to prevent repetition
-    early_stopping: bool = False,  # Disabled to allow full length generation
-    custom_prompt: Optional[str] = None,
-) -> List[str]:
-    """
-    Generate multiple poetic responses for a given prompt.
-    
-    Args:
-        prompt: Input text to generate from
-        max_length: Maximum length of generated text (increased to 2000)
-        num_return_sequences: Number of different sequences to generate
-        temperature: Controls randomness (0.7 for balanced creativity)
-        top_k: Number of highest probability tokens to consider (100 for more diversity)
-        top_p: Cumulative probability threshold for token selection (0.9 for more diversity)
-        repetition_penalty: Penalty for repeating tokens (1.5 to prevent repetition)
-        early_stopping: Whether to stop at the first complete sentence (disabled)
-        custom_prompt: Optional custom prompt to guide the generation
-    
-    Returns:
-        List of generated text sequences
-    """
+    prompt,
+    temperatures=[0.1, 0.5, 0.9],
+    max_length=512,
+    **kwargs
+):
+    """Generate text based on the prompt with multiple temperatures."""
     try:
-        # Clear CUDA cache if available
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        results = []
         
-        # Process the prompt with custom prompt if provided
-        if custom_prompt:
-            prompt = f"{custom_prompt}\n\nPrompt: {prompt}"
+        # Tokenize input once
+        inputs = _tokenizer(
+            prompt,
+            return_tensors="pt",
+            truncation=True,
+            max_length=128  # Limit input length
+        ).to(_model.device)
         
-        # Encode input
-        inputs = _tokenizer.encode(prompt, return_tensors="pt").to(device)
+        # Generate for each temperature
+        for temp in temperatures:
+            outputs = _model.generate(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
+                max_new_tokens=384,  # Fixed output length
+                temperature=temp,
+                do_sample=True,
+                top_k=50,
+                top_p=0.95,
+                num_return_sequences=1,
+                pad_token_id=_tokenizer.pad_token_id,
+                eos_token_id=_tokenizer.eos_token_id,
+                no_repeat_ngram_size=3,
+                length_penalty=1.5
+            )
+            
+            # Decode and clean up
+            generated_text = _tokenizer.decode(outputs[0], skip_special_tokens=True)
+            generated_text = generated_text[len(prompt):].strip()
+            
+            results.append({
+                "text": generated_text,
+                "temperature": temp
+            })
         
-        # Set up generation parameters
-        gen_kwargs = {
-            "max_length": max_length,
-            "num_return_sequences": num_return_sequences,
-            "temperature": temperature,
-            "top_k": top_k,
-            "top_p": top_p,
-            "repetition_penalty": repetition_penalty,
-            "do_sample": True,
-            "pad_token_id": _tokenizer.eos_token_id,
-            "no_repeat_ngram_size": 3,  # Prevent repetition of 3-grams
-            "length_penalty": 1.2,  # Encourage longer sequences
-            "num_beams": 1,  # Use greedy search since we're using temperature sampling
-            "min_length": 500,  # Ensure minimum length of 500 tokens
-            "eos_token_id": _tokenizer.eos_token_id,
-            "pad_token_id": _tokenizer.pad_token_id,
-            "bad_words_ids": None,  # No bad words filtering
-            "use_cache": True,  # Enable caching for faster generation
-            "output_scores": False,  # Don't output scores to save memory
-            "return_dict_in_generate": False,  # Return only the sequences
-        }
-
-        # Generate sequences
-        with torch.no_grad():  # Disable gradient calculation
-            output_sequences = _model.generate(inputs, **gen_kwargs)
+        return results
         
-        # Decode and clean up the generated sequences
-        generated_sequences = []
-        for sequence in output_sequences:
-            text = _tokenizer.decode(sequence, skip_special_tokens=True)
-            # Remove the input prompt from the output
-            text = text[len(_tokenizer.decode(inputs[0], skip_special_tokens=True)):]
-            # Clean up the text
-            text = text.strip()
-            # Ensure the text ends with proper punctuation
-            if not text.endswith(('.', '!', '?')):
-                text += '.'
-            generated_sequences.append(text.strip())
-        
-        # Clear memory
-        del inputs, output_sequences
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        gc.collect()
-        
-        return generated_sequences
     except Exception as e:
         logger.error(f"Error generating text: {str(e)}")
-        # Clear memory on error
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        gc.collect()
         raise 
