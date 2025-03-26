@@ -11,6 +11,9 @@ i-partituras
 .trash
 7-instrumentos/hiperfonos/14-hiperfonos/14-2-granulador
 
+# UTILITIES
+*.safe
+
 node_modules
 *.log
 
@@ -41,6 +44,7 @@ stats.html
 *.pkl
 *.onnx
 *.safetensors
+
 
 # Created by https://www.toptal.com/developers/gitignore/api/node,react
 # Edit at https://www.toptal.com/developers/gitignore?templates=node,react
