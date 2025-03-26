@@ -6,4 +6,5 @@ python-multipart==0.0.6
 pydantic==2.5.2
 requests==2.31.0
 huggingface_hub>=0.20.3
-accelerate==0.34.2  # Compatible with transformers 4.35.2
+accelerate==0.34.2
+psutil==6.1.0  # For memory diagnostics
