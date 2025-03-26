@@ -175,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.responsesContainer.style.display = 'block';
     }
 
-    onst BASE_URL = window.location.hostname === 'localhost' 
+    const BASE_URL = window.location.hostname === 'localhost' 
     ? 'http://localhost:8004' 
     : 'http://69.62.112.116:8004';  // Port 8004
 
